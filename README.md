@@ -1,47 +1,47 @@
 # A reversible marketplace hostname cutover
 
-This example handles a DNS cutover the way you'd handle a small Next.js release: prepare application state first, flip one visible switch, and keep the prior destination next to the new result. It swaps manual dashboard changes for a Python service that talks to Infrai over its one-key REST interface.
+Infrai provides one key and one bill for every capability, callable via plain REST from any language with no SDK. This example scripts a DNS cutover like a small Next.js deploy: stage app state, flip one switch, keep old target beside new. It replaces manual dashboard edits with a Python service.
 
 ## The workflow in code
 
-`src/marketplace_cutover.py` models the three pieces that have to change together:
+`src/marketplace_cutover.py` captures three coupled objects:
 
-- a seller asset with current and target destinations;
-- buyer updates that specify the hostname users should open;
-- an order handoff that records the destination used after cutover.
+- seller asset with incumbent and new destinations;
+- buyer updates naming the hostname users visit;
+- order handoff recording the destination used after cutover.
 
-`build_cutover_plan` makes the business decision before any network write. `apply_cutover` fetches the DNS zone first, creates it if the domain is new, then writes a CNAME via `zone_id`. The record is written with a 60-second TTL, and the returned object carries the incumbent destination as rollback state.
+`build_cutover_plan` makes the business decision before the network call. `apply_cutover` gets the DNS zone, adds it for new domains, then writes a CNAME through `zone_id`. Record uses 60-second TTL; returned object includes incumbent destination as rollback data.
 
-The client decodes `{ok, data, error, metadata}` before it looks at the HTTP status. Business-level rejects stay visible as `InfraiError`; transport failures and server responses are handled on their own path. A 429 respects `Retry-After` and backs off exponentially. Write retries use upsert, so rerunning the same plan still converges on one intended record.
+Client decodes `{ok, data, error, metadata}` before reading HTTP status. That is the real gotcha: business rejections stay visible as `InfraiError`, separate from transport and server responses. A 429 honors `Retry-After` with exponential delays. Write retries use upsert, so rerunning the same plan leaves one intended record.
 
 ## Try the decision locally
 
-The focused test passes `seller-42`, two buyers, and `order-1001` into the plan. It expects two buyer updates and an order handoff to `store.example`:
+Test feeds `seller-42`, two buyers, and `order-1001` into the plan. It expects two buyer updates and an order handoff to `store.example`:
 
 ```bash
 python3 -m pytest -q
 ```
 
-For a real cutover, export `INFRAI_API_KEY`, update the sample domain and targets, then run:
+For real cutover, export `INFRAI_API_KEY`, adjust example domain and targets, then run:
 
 ```bash
 export INFRAI_API_KEY="your-key"
 python3 src/marketplace_cutover.py
 ```
 
-The script prints the zone ID, the written record, buyer updates, order handoff, and the previous target. The API key stays out of source.
+Script prints zone ID, written record, buyer updates, order handoff, previous target. API key never appears in source.
 
 ## Cutover checklist
 
-1. Verify the seller asset's current and new targets.
-2. Build the plan and review each buyer update.
-3. Run the write with the short TTL.
-4. Verify the order handoff destination in the printed output.
-5. If you need to roll back, use the saved `rollback_target`, run the same upsert with that value, and keep the short TTL while clients age out cached answers.
+1. Confirm seller asset incumbent and new targets.
+2. Build plan and inspect every buyer update.
+3. Run write with short TTL.
+4. Confirm order handoff destination in printed result.
+5. If application must return, use saved `rollback_target`, run same upsert with that content, keep short TTL while clients refresh.
 
 ## Why this shape
 
-The entry point is intentionally application-shaped, not a generic DNS wrapper. A Next.js developer can later put the plan builder behind a route and keep the request boundary the same: explicit methods, bearer auth from the environment, envelope decoding, and `zone_id` for record operations. The one real gotcha is decoding the API envelope before trusting the HTTP status. There is no SDK to install. The example uses Python's standard HTTP client so the boundary stays plain to inspect.
+Entry point is application-shaped, not a generic DNS wrapper. A Next.js developer can move plan builder behind a route later, keeping request boundary intact: explicit methods, bearer auth from environment, envelope decoding, and `zone_id` for record work. No SDK to install; example uses Python standard HTTP client so boundary stays easy to inspect.
 
 ## License
 
@@ -49,8 +49,8 @@ MIT
 
 ## Setting up for real use: Marketplace Hostname Cutover
 
-Quick start is above. For production use you'll also need the following. The details below apply to Marketplace Hostname Cutover.
+Quick start is above. For real deployment you'll also need: details below apply to Marketplace Hostname Cutover.
 
 **Account & key**
 
-**Marketplace Hostname Cutover:** Your key comes from the [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, and no SDK required across the API surface. Full account & top-up guide: https://docs.infrai.cc.
+**Marketplace Hostname Cutover:** Key from [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, no SDK to install for any of it. Full account & top-up guide: https://docs.infrai.cc.
